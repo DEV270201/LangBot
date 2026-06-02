@@ -1,12 +1,67 @@
 import streamlit as st
 from Server.main import chatbot
 from langchain_core.messages import HumanMessage
+import uuid
 
-CONFIG = {"configurable": {"thread_id": "123"}}
+def generate_unique_thread_id():
+    thread_id = str(uuid.uuid4())
+    return thread_id
 
-# we would be using session state for maintaining the state of the chat 
+# whenever user clicks on new chat then we need to create a new thread id for that conversation as well as clean the UI for new messages
+def reset_chat():
+    st.session_state.messages = []
+    st.session_state.thread_id = generate_unique_thread_id()
+    add_thread_id(st.session_state.thread_id)
+
+def add_thread_id(thread_id):
+    # Streamlit reruns the script frequently; avoid duplicating ids in the sidebar list.
+    if thread_id not in st.session_state.chat_thread_ids:
+        st.session_state.chat_thread_ids.append(thread_id)
+
+def load_conversation(thread_id):
+    state = chatbot.get_state(config={'configurable': {'thread_id': thread_id}})
+    # Check if messages key exists in state values, return empty list if not
+    return state.values.get('messages', [])
+
+# ---------
+# CODE FOR STATE MANAGEMENT WHEN THE APP STARTS 
+# we would be using session state for maintaining the state of the chat, the current session id and list of previous session ids of the chats
 if "messages" not in st.session_state:
     st.session_state.messages = []
+
+if "thread_id" not in st.session_state:
+    st.session_state.thread_id = generate_unique_thread_id()
+
+if "chat_thread_ids" not in st.session_state:
+    st.session_state.chat_thread_ids = []
+
+add_thread_id(st.session_state.thread_id)
+# -------
+
+
+# SIDEBAR 
+st.sidebar.title("Devly's Chatbot")
+if st.sidebar.button("New Chat"):
+    reset_chat()
+st.sidebar.header("My Conversations")
+
+CONFIG = {"configurable": {"thread_id": st.session_state.thread_id}}
+
+for thread_id in st.session_state.chat_thread_ids[::-1]:
+    if st.sidebar.button(thread_id):
+        st.session_state['thread_id'] = thread_id
+        messages = load_conversation(thread_id)
+
+        temp_messages = []
+
+        for msg in messages:
+            if isinstance(msg, HumanMessage):
+                role='user'
+            else:
+                role='assistant'
+            temp_messages.append({'role': role, 'content': msg.content})
+
+        st.session_state['messages'] = temp_messages
 
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
