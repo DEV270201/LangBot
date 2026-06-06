@@ -1,6 +1,6 @@
 import streamlit as st
 from Server.main import chatbot, retrieve_all_threads
-from langchain_core.messages import HumanMessage, AIMessage, AIMessageChunk
+from langchain_core.messages import HumanMessage, AIMessage, AIMessageChunk, ToolMessage
 import uuid
 
 def generate_unique_thread_id():
@@ -82,16 +82,38 @@ if user_input:
     # """
     with st.chat_message("assistant"):
 
+        # Use a mutable holder so the generator can set/modify it
+        status_holder = {"box": None}
+
         def stream_ai_message():
-            for message_chunk, metadata in chatbot.stream(
-                {'messages': [HumanMessage(content=user_input)]},
-                config=CONFIG,
-                stream_mode='messages' #when you switch the stream mode to messages then a callback is passed down to langgraph which will stream the tokens from the LLM to the UI
-                #when you switch the stream mode to custom then you have to handle the streaming yourself 
-            ):
-                # Stream only assistant tokens (skip ToolMessage JSON from the tools node)
-                if isinstance(message_chunk, (AIMessage)) and message_chunk.content:
-                    yield message_chunk.content
+            try:
+                for message_chunk, metadata in chatbot.stream(
+                    {'messages': [HumanMessage(content=user_input)]},
+                    config=CONFIG,
+                    stream_mode='messages' #when you switch the stream mode to messages then a callback is passed down to langgraph which will stream the tokens from the LLM to the UI
+                    #when you switch the stream mode to custom then you have to handle the streaming yourself 
+                ):
+
+                    # Lazily create & update the SAME status container when any tool runs
+                    if isinstance(message_chunk, ToolMessage):
+                        tool_name = getattr(message_chunk, "name", "tool")
+                        if status_holder["box"] is None:
+                            status_holder["box"] = st.status(
+                                f"🔧 Using `{tool_name}` …", expanded=True
+                            )
+                        else:
+                            status_holder["box"].update(
+                                label=f"🔧 Using `{tool_name}` …",
+                                state="running",
+                                expanded=True,
+                            )
+
+                    # Stream only assistant tokens (skip ToolMessage JSON from the tools node)
+                    if isinstance(message_chunk, (AIMessage)) and message_chunk.content:
+                        yield message_chunk.content
+            finally:
+                if status_holder["box"] is not None:
+                    status_holder["box"].update(state="complete", expanded=False)
 
 
         ai_message = st.write_stream(stream_ai_message())
