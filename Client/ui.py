@@ -1,6 +1,6 @@
 import streamlit as st
 from Server.main import chatbot, retrieve_all_threads
-from langchain_core.messages import HumanMessage
+from langchain_core.messages import HumanMessage, AIMessage, AIMessageChunk
 import uuid
 
 def generate_unique_thread_id():
@@ -51,15 +51,15 @@ for thread_id in st.session_state.chat_thread_ids[::-1]:
     if st.sidebar.button(thread_id):
         st.session_state['thread_id'] = thread_id
         messages = load_conversation(thread_id)
-
+        # print("MESSAGES:", messages)
         temp_messages = []
 
         for msg in messages:
-            if isinstance(msg, HumanMessage):
-                role='user'
-            else:
-                role='assistant'
-            temp_messages.append({'role': role, 'content': msg.content})
+            # print("MSG:", msg.type)
+            if isinstance(msg, HumanMessage) and msg.content.strip():
+                temp_messages.append({'role': 'user', 'content': msg.content})
+            elif isinstance(msg, AIMessage) and msg.content.strip():
+                temp_messages.append({'role': 'assistant', 'content': msg.content})
 
         st.session_state['messages'] = temp_messages
 
@@ -83,12 +83,16 @@ if user_input:
     with st.chat_message("assistant"):
 
         def stream_ai_message():
-            for chunk in chatbot.stream(
+            for message_chunk, metadata in chatbot.stream(
                 {'messages': [HumanMessage(content=user_input)]},
                 config=CONFIG,
-                stream_mode='custom'
+                stream_mode='messages' #when you switch the stream mode to messages then a callback is passed down to langgraph which will stream the tokens from the LLM to the UI
+                #when you switch the stream mode to custom then you have to handle the streaming yourself 
             ):
-                yield chunk
+                # Stream only assistant tokens (skip ToolMessage JSON from the tools node)
+                if isinstance(message_chunk, (AIMessage)) and message_chunk.content:
+                    yield message_chunk.content
+
 
         ai_message = st.write_stream(stream_ai_message())
         st.session_state.messages.append({'role': 'assistant', 'content': ai_message})
