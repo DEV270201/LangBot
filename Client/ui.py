@@ -1,6 +1,6 @@
 import streamlit as st
 from Server.main import chatbot, retrieve_all_threads
-from langchain_core.messages import HumanMessage, AIMessage, AIMessageChunk, ToolMessage
+from langchain_core.messages import HumanMessage, AIMessage, ToolMessage
 import uuid
 
 def generate_unique_thread_id():
@@ -108,8 +108,12 @@ if user_input:
                                 expanded=True,
                             )
 
-                    # Stream only assistant tokens (skip ToolMessage JSON from the tools node)
-                    if isinstance(message_chunk, (AIMessage)) and message_chunk.content:
+                    # Stream only the chat reply — skip hidden summarization in manage_memory
+                    if (
+                        isinstance(message_chunk, AIMessage)
+                        and message_chunk.content
+                        and metadata.get("langgraph_node") == "chat_node"
+                    ):
                         yield message_chunk.content
             finally:
                 if status_holder["box"] is not None:
