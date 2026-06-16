@@ -43,6 +43,7 @@ def summarize_messages(summary: str, messages: list[BaseMessage]) -> str:
 
     De-emphasize or omit: greetings, filler, repeated tool call mechanics, and raw tool JSON unless a specific result mattered to the user.
     Write the summary only — no preamble or headings.
+    Write the summary in English only, regardless of the language used in the conversation.
 
     EXISTING SUMMARY:
 

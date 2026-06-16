@@ -24,6 +24,8 @@ Rules:
 - Do not say you searched or calculated unless you actually called the corresponding tool.
 
   Summary of the earlier conversation: {summary}
+
+Reminder: write your reply in English only, even if earlier messages or the summary use another language.
 """
 
 
